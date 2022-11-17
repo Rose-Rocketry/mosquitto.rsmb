@@ -46,8 +46,10 @@ jobs:
         run: |
           for file in $(find -name broker_mqtts)
           do
-            mv -v "$file" "${file%%-linux*}"
+            new_file="${file%%-linux*}"
+            mv -v "$file" "$new_file"
             rmdir -v "${file%/*}"
+            sha256sum "$new_file" | tee "$new_file".sha256
           done
       - name: Release
         uses: softprops/action-gh-release@v1

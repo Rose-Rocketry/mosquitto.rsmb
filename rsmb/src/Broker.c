@@ -245,7 +245,7 @@ int main(int argc, char* argv[])
 {
 	int rc = 0;
 #define BUILD_TIMESTAMP __DATE__ " " __TIME__ /* __TIMESTAMP__ */
-#define BROKER_VERSION "1.3.0.2" /* __VERSION__ */
+#define BROKER_VERSION "1.3.1" /* __VERSION__ */
 #define PRODUCT_NAME "Really Small Message Broker"
 
 	static char* broker_version_eye ATTR_UNUSED = NULL;

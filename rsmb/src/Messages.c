@@ -37,7 +37,6 @@
 
 #define ARRAY_SIZE(a) (sizeof(a) / sizeof(a[0]))
 
-static char* message_list[MAX_MESSAGE_INDEX+1];	/**< array of messages */
 
 static char* protocol_message_list[] =
 {
@@ -179,129 +178,312 @@ static char* trace_message_list[] =
 	"Failed to remove client from bstate->clients", /* 39 */
 };
 
-#if defined(WIN32)
-	char sep = '\\';
-#else
-	char sep = '/';
-#endif
-
-
-/**
- * Find the location of this program 
- * @param buf a character buffer to hold the directory name
- * @param bufsize the size of buf
- * @return the success return code
- */
-int Messages_findMyLocation(char* buf, int bufsize)
-{
-	int rc = -1;
-#if defined(WIN32)
-	wchar_t wbuf[256];
-#endif
- 	
-	FUNC_ENTRY;
-#if defined(WIN32) 	
-	rc = GetModuleFileName(NULL, wbuf, bufsize);
-	wcstombs(buf, wbuf, bufsize);
-#else /* Linux */
-	rc = (int)readlink("/proc/self/exe", buf, bufsize);
-#endif
-	if (rc > 0 && rc < bufsize)
-	{
-		char* pos;
-		if ((pos = strrchr(buf, sep)) != NULL)
-			*pos = '\0'; /* remove trailing program name, leaving just the directory */
-		rc = 0; /* success */
-	}
- 	else
-		rc = -1; /* failure */
-	FUNC_EXIT_RC(rc);
-	return rc;
-}
-
-
-/**
- * maximum length of a message format string read from the file
- */
-#define max_msg_len 120
-
-/**
- * Initialize the message module
- * @param bstate pointer to the broker state structure
- * @return completion code, success =0
- */
-int Messages_initialize(BrokerStates* bstate)
-{
-	FILE* rfile = NULL;
-	char buf[max_msg_len];
-	int count = 0;
-	int rc = -99;
-	char fn[20] = "Messages.";
-
-	FUNC_ENTRY;
-	strcat(fn, bstate->version);
-	if ((rfile = fopen(fn, "r")) == NULL)
-	{
-		char fullfn[256];
-		sprintf(fullfn, "..%cmessages%c%s", sep, sep, fn);
-		if ((rfile = fopen(fullfn, "r")) == NULL)
-		{
-			if (Messages_findMyLocation(fullfn, sizeof(fullfn)) == 0)
-			{
-				int dirlength = strlen(fullfn);
-				
-				snprintf(&fullfn[dirlength], sizeof(fullfn) - dirlength, "%c%s", sep, fn);
-				rfile = fopen(fullfn, "r");
-				if (rfile == NULL)
-				{
-					snprintf(&fullfn[dirlength + 1], sizeof(fullfn) - dirlength, "..%cmessages%c%s", sep, sep, fn);
-					rfile = fopen(fullfn, "r");
-				}
-			}
-		}
-	}
-
-	if (rfile == NULL)
-		Log(LOG_WARNING, 9989, "Could not find or open message file %s", fn);
-	else
-	{
-		char* msg;
-		memset(message_list, '\0', sizeof(message_list));
-		while (fgets(buf, max_msg_len, rfile) != NULL && count < MESSAGE_COUNT)
-		{
-			int msgindex = 0;
-
-			if (buf[0] == '#')
-				continue; /* it's a comment */
-			msgindex = atoi(buf);
-			if (msgindex < ARRAY_SIZE(message_list))
-			{
-				char* start = strchr(buf, '=');
-				int msglen = strlen(buf);
-
-				if (start == NULL)
-					continue;
-				if (buf[msglen - 1] == '\n')
-					buf[--msglen] = '\0';
-				if (buf[msglen - 1] == '\r') /* this can happen if we read a messages file in with gcc with windows */
-					buf[--msglen] = '\0';				/* end of line markers */
-				msglen -= ++start - buf;
-				msg = (char*)malloc(msglen + 1);
-				strcpy(msg, start);
-				message_list[msgindex] = msg;
-				count++;
-			}
-		}
-		fclose(rfile);
-		if (count != MESSAGE_COUNT)
-			Log(LOG_WARNING, 9988, "Found %d instead of %d messages in file %s", count, MESSAGE_COUNT, fn);
-		else
-			rc = 0;
-	}
-	FUNC_EXIT_RC(rc);
-	return rc;
-}
-
+static char* message_list[] = {
+	"Could not read configuration file %s", /* 0 */
+	"No value for keyword %s on line %d", /* 1 */
+	"Unrecognized topic direction %s", /* 2 */
+	"Setting property \"%s\" to %s", /* 3 */
+	"Unrecognized boolean value %s on line number %d", /* 4 */
+	"Setting property \"%s\" to \"%s\"", /* 5 */
+	"Adding value \"%s\" to list \"%s\"", /* 6 */
+	"Setting property \"%s\" to %d", /* 7 */
+	"Unrecognized configuration keyword %s on line number %d", /* 8 */
+	"Cannot open %s file %s for writing, %ss will not be saved", /* 9 */
+	"Cannot open %s file %s for reading, %ss will not be restored", /* 10 */
+	"Restoring %ss from file %s", /* 11 */
+	"Wildcard in publish topic %.20s from client %s not allowed", /* 12 */
+	"Internal error; FFDC written to file %s", /* 13 */
+	"MQTT protocol starting, listening on port %d", /* 14 */
+	"Cannot start listener on port %d", /* 15 */
+	"MQTT protocol stopping", /* 16 */
+	"Closing client %s", /* 17 */
+	"Socket error for client identifier %s, socket %d, peer address %s; ending connection", /* 18 */
+	"Bad packet for client identifier %s, socket %d, peer address %s; ending connection", /* 19 */
+	"Socket error on socket %d, peer address %s; ending connection", /* 20 */
+	"Badly formed packet on socket %d, peer address %s; ending connection", /* 21 */
+	"Unknown MQTT packet type %d on socket %d", /* 22 */
+	"Connect was not first packet on socket %d, peer address %s; got %s", /* 23 */
+	"%d second keepalive timeout for client %s, ending connection", /* 24 */
+	"Incorrect configuration: acl_file requires password_file to be specified", /* 25 */
+	NULL,
+	NULL,
+	"Trying PUBLISH again for client %s, socket %d, message identifier %d", /* 28 */
+	"Socket error for client %s, socket %d, ending connection", /* 29 */
+	"Trying PUBREL again for client %s, message identifier %d", /* 30 */
+	"Refusing connection attempt for unauthorized client identifier %s", /* 31 */
+	"Connection attempt using unsupported protocol %s version %d received", /* 32 */
+	"Connection attempt to listener %d received from client %s on address %s", /* 33 */
+	"Duplicate connection attempt received for client identifier \"%s\" from address %s, ending oldest connection", /* 34 */
+	NULL,
+	NULL,
+	NULL,
+	"Disconnection request received from client %s", /* 38 */
+	"Invalid user entry on line number %d", /* 39 */
+	"Unrecognized user %s on line number %d", /* 40 */
+	"Invalid access control rule on line number %d", /* 41 */
+	"Uptime: %d seconds", /* 42 */
+	"Messages received: %d", /* 43 */
+	"Messages sent: %d", /* 44 */
+	"Queued message limit reached for client %s. Number of messages discarded so far: %d", /* 45 */
+	"Broker stopping", /* 46 */
+	"Broker stopped", /* 47 */
+	"First Failure Data Capture (FFDC) condition occurred, but FFDC writing turned off", /* 48 */
+	"Configuration file name is %s", /* 49 */
+	"Packet %s received from client %s for message identifier %d, but no record of that message identifier found", /* 50 */
+	"Packet %s received from client %s for message identifier %d, but message is wrong QoS, %d", /* 51 */
+	"Packet %s received from client %s for message identifier %d, but message is in wrong state", /* 52 */
+	"Version %s, %s", /* 53 */
+	"Features included:", /* 54 */
+	"Maximum heap use: %d bytes", /* 55 */
+	"Bridge connection %s not started because its client identifier %s is a duplicate", /* 56 */
+	"Connection %s is deleted", /* 57 */
+	"Error deleting connection %s", /* 58 */
+	"No bridge connection with name %s", /* 59 */
+	"Stopping bridge connection %s", /* 60 */
+	"Unable to stop connection %s", /* 61 */
+	"Connection %s is now stopped", /* 62 */
+	"Stopping connection %s on idle timeout", /* 63 */
+	"%d queued messages discarded for client %s", /* 64 */
+	"Unable to clear retained flag for system topic %s", /* 65 */
+	"Discarding retained message with invalid topic name %s", /* 66 */
+	"Error getting network format for address %s", /* 67 */
+	"Processing command file %s", /* 68 */
+	NULL,
+	NULL,
+	"Unexpected ping response received for client %s", /* 71 */
+	NULL,
+	NULL,
+	NULL,
+	"Socket error %d (%s) in %s for socket %d", /* 75 */
+	NULL,
+	"Cannot open socket", /* 77 */
+	"Cannot bind port %d", /* 78 */
+	"TCP listen call failed for port %d", /* 79 */
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	"%s is not a valid IP address", /* 92 */
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	"Trying bridge connection %s address %s again, without private protocol", /* 99 */
+	"Autosaving persistent data after %d changes", /* 100 */
+	"Autosaving persistent data after %d second interval", /* 101 */
+	NULL,
+	NULL,
+	"Saving persistence state at user request", /* 104 */
+	"Ignoring user request to save state because there are no changes", /* 105 */
+	NULL,
+	NULL,
+	NULL,
+	"Failed to setsockopt SO_REUSEADDR on listening port %d", /* 109 */
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	"Trying backup bridge connection %s", /* 123 */
+	"Starting bridge connection %s", /* 124 */
+	"Error starting bridge connection", /* 125 */
+	NULL,
+	"Starting reconnection attempt for bridge connection %s, address %s", /* 127 */
+	"TCP connect timeout for bridge connection %s", /* 128 */
+	"Can't get connection completion state from socket", /* 129 */
+	"Connect for bridge client %s, address %s, failed with TCP error code %d", /* 130 */
+	NULL,
+	"Connection acknowledgement rc %d received for client %s", /* 132 */
+	"Bridge connection %s to %s now established", /* 133 */
+	"Closing bridge backup connection %s", /* 134 */
+	"Inbound bridge topic %s does not match any pattern for connection %s", /* 135 */
+	"Outbound bridge topic %s does not match any pattern for connection %s", /* 136 */
+	NULL,
+	NULL,
+	"retained message", /* 139 */
+	"subscription", /* 140 */
+	"Refusing connection attempt by client %s; maximum number of connections %d already reached for listener %d", /* 141 */
+	"Incorrect configuration: no addresses for bridge connection %s", /* 142 */
+	"Ping response not received within %d seconds for bridge connection %s; ending connection", /* 143 */
+	"Connection with name %s already exists; add failed", /* 144 */
+	"Message queue for client %s is more than %d%% full", /* 145 */
+	"Message queue for client %s is less than %d%% full", /* 146 */
+	"Error saving retained message persistence file", /* 147 */
+	"Error saving subscription persistence file", /* 148 */
+	"Client %s is not authorized to publish to topic: %s", /* 149 */
+	"Client %s is not authorized to subscribe to topic: %s", /* 150 */
+	"Cannot give read access to topic: %s", /* 151 */
+	"Unrecognized configuration value %s on line number %d", /* 152 */
+	"Invalid topic syntax in subscription %.20s from client identifier %s, peer address %s", /* 153 */
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	"MQTT-S protocol starting, listening on port %d", /* 300 */
+	"MQTT-S protocol stopping", /* 301 */
+	"Unknown interface %s for if_nametoindex", /* 302 */
+	"Adding multicast interface %s on interface %s" /* 303 */
+};
 
 /**
  * Get a log message by its index
@@ -320,21 +502,4 @@ char* Messages_get(int index, int log_level)
 	else
 		msg = (index >= 0 && index < ARRAY_SIZE(message_list)) ? message_list[index] : NULL;
 	return msg;
-}
-
-
-/**
- * Free up allocated message storage
- */
-void Messages_terminate()
-{
-	int i;
-
-	FUNC_ENTRY;
-	for (i = 0; i < ARRAY_SIZE(message_list); ++i)
-	{
-		if (message_list[i])
-			free(message_list[i]);
-	}
-	FUNC_EXIT;
 }

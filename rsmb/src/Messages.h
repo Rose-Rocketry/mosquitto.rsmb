@@ -18,28 +18,7 @@
 #if !defined(MESSAGES_H)
 #define MESSAGES_H
 
-/**
- * Number of messages in the file
- */
-#if !defined(MQTTS)
-#define MESSAGE_COUNT 103
-#else
-#define MESSAGE_COUNT 107
-#endif
-
-/**
- * Largest message number
- */
-#if !defined(MQTTS)
-#define MAX_MESSAGE_INDEX 153
-#else
-#define MAX_MESSAGE_INDEX 303
-#endif
-
 #include "Broker.h"
-
-int Messages_initialize(BrokerStates*);
-void Messages_terminate();
 
 char* Messages_get(int, int);
 

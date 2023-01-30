@@ -192,24 +192,29 @@ void* MQTTSPacket_Factory(int sock, char** clientAddr, struct sockaddr* from, in
 	{
 		++data;
 		header.len = readInt(&data);
+		if (header.len != n)
+		{
+			*error = UDPSOCKET_INCOMPLETE;
+			goto exit;
+		}
+		header.len -= 2; // Rest of code is written assuming a 1-byte length header, this emulates that for larger packets
 	}
-	else
-		header.len = *(unsigned char*)data++;
-	header.type = *data++;
-	//printf("header.type is %d, header.len is %d, n is %d\n", header.type, header.len, n);
-    if (header.len != n)
-    {
-		*error = UDPSOCKET_INCOMPLETE;
-		goto exit;
-    }
 	else
 	{
-		ptype = header.type;
-		if (ptype < MQTTS_ADVERTISE || ptype > MQTTS_WILLMSGRESP || new_mqtts_packets[ptype] == NULL)
-			Log(TRACE_MAX, 17, NULL, ptype);
-		else if ((pack = (*new_mqtts_packets[ptype])(header, data)) == NULL)
-			*error = BAD_MQTTS_PACKET;
+		header.len = *(unsigned char*)data++;
+		if (header.len != n)
+		{
+			*error = UDPSOCKET_INCOMPLETE;
+			goto exit;
+		}
 	}
+	header.type = *data++;
+	//printf("header.type is %d, header.len is %d, n is %d\n", header.type, header.len, n);
+	ptype = header.type;
+	if (ptype < MQTTS_ADVERTISE || ptype > MQTTS_WILLMSGRESP || new_mqtts_packets[ptype] == NULL)
+		Log(TRACE_MAX, 17, NULL, ptype);
+	else if ((pack = (*new_mqtts_packets[ptype])(header, data)) == NULL)
+		*error = BAD_MQTTS_PACKET;
 exit:
    	FUNC_EXIT_RC(*error);
    	return pack;
